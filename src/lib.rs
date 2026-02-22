@@ -41,22 +41,31 @@ impl RpcRouter {
 
     Ok(serde_json::from_slice(&result)?)
     }
-    pub async fn race(&self, method: &str, params: Value) -> Result<Value> {
-        let urls = router::get_all_healthy(&self.providers);
-      let body = serde_json::json!({"jsonrpc":"2.0","method":method,"params":params,"id":1});
-      let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-        for url in urls {
-            let client = self.client.clone();
-             let body = body.clone();
-             let tx = tx.clone();
-            tokio::spawn(async move {
-                if let Ok(res) = client.post(&url).json(&body).send().await {
-                    if let Ok(json) = res.json::<Value>().await {
-                        let _ = tx.send(json).await;
-                    }
+    pub async fn failover(&self, method: &str, params: Value) -> Result<Value> {
+        let mut providers: Vec<_> = self.providers
+            .iter()
+            .filter(|p| p.healthy && !p.cool_off)
+            .map(|p| (p.score(), p.url.clone()))
+            .collect();
+        providers.sort_by_key(|(score, _)| *score);
+    let body = serde_json::json!({"jsonrpc":"2.0","method":method,"params":params,"id":1});
+        for (_, url) in providers {
+            if let Ok(res) = self.client.post(&url).json(&body).send().await {
+                if let Ok(json) = res.json::<Value>().await {
+                    return Ok(json);
                 }
-            });
+            }
         }
-        rx.recv().await.ok_or(anyhow::anyhow!("all providers failed"))
+        Err(anyhow::anyhow!("all providers failed"))
     }
+    pub fn health(&self) -> Vec<serde_json::Value> {
+    self.providers.iter().map(|p| {
+        serde_json::json!({
+            "name": p.name,
+            "healthy": p.healthy,
+            "latency": p.average_latency,
+            "score": if p.average_latency == 0 { 0 } else { p.score() },
+        })
+    }).collect()
+}
 }

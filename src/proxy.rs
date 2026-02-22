@@ -49,13 +49,25 @@ pub async fn broadcast(client: &Client, providers: &ProviderMap, body: Bytes) ->
             async move { client.post(&url).body(body).header("Content-Type", "application/json").send().await }
         })
     ).await;
-
+  let mut best: Option<(u64, Bytes)> = None;
     for res in responses.into_iter().flatten() {
         if res.status().is_success() {
-            if let Ok(bytes) = res.bytes().await { return Some(bytes); }
+            if let Ok(bytes) = res.bytes().await {
+                if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                    let slot = json["result"]["context"]["slot"].as_u64().unwrap_or(0);
+                    if slot == 0 {
+                        return Some(bytes);
+                    }
+                    match &best {
+                        None => best = Some((slot, bytes)),
+                        Some((best_slot, _)) if slot > *best_slot => best = Some((slot, bytes)),
+                        _ => {}
+                    }
+                }
+            }
         }
     }
-    None
+    best.map(|(_, bytes)| bytes)
 }
 
 pub async fn retry(client: &Client, providers: &ProviderMap, method: &str, body: Bytes) -> Option<Bytes> {
