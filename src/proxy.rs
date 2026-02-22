@@ -13,9 +13,9 @@ pub struct AppState {
 pub async fn start_proxy(providers: ProviderMap, port: u16) -> anyhow::Result<()> {
     let state = AppState { providers, client: Client::new() };
     let listener = tokio::net::TcpListener::bind(
-        SocketAddr::from(([127, 0, 0, 1], port))
+        SocketAddr::from(([0, 0, 0, 0], port))
     ).await?;
-    println!("proxy on http://127.0.0.1:{}", port);
+    println!("proxy on http://0.0.0.0:{}", port);
     axum::serve(listener, Router::new()
         .route("/", post(handler))
         .route("/stats", axum::routing::get(stats))

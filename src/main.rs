@@ -18,11 +18,16 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Start => {
-            let providers_health = providers.clone();
+            let port = std::env::var("PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(config.settings.port);
+            
+        let providers_health = providers.clone();
             tokio::spawn(async move {
                 health::start_health_checker(providers_health).await.unwrap();
             });
-            proxy::start_proxy(providers, config.settings.port).await?;
+            proxy::start_proxy(providers, port).await?;
         }
         Commands::Benchmark => {
         cli::run(Commands::Benchmark, providers).await?;
