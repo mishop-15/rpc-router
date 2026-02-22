@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 use axum::{Router, routing::post,extract::State,body::Bytes,response::Response, Json};
 use reqwest::Client;
 use futures::future::join_all;
-use axum::http::HeaderValue;
 use tower_http::cors::{CorsLayer, Any};
+use tokio::net::TcpListener;
 use crate::provider::ProviderMap;
 use crate::router;
 
@@ -14,7 +14,7 @@ pub struct AppState {
 }
 pub async fn start_proxy(providers: ProviderMap, port: u16) -> anyhow::Result<()> {
     let state = AppState { providers, client: Client::new() };
-    let listener = tokio::net::TcpListener::bind(
+    let listener = TcpListener::bind(
         SocketAddr::from(([0, 0, 0, 0], port))
     ).await?;
     let cors = CorsLayer::new()
@@ -40,12 +40,21 @@ pub async fn handler(State(s): State<AppState>, body: Bytes) -> Response {
     println!("[{}] routing", method);
 
     let result = match method.as_str() {
-        "getLatestBlockhash" | "sendTransaction" => broadcast(&s.client, &s.providers, body).await,
+        "getLatestBlockhash" | "sendTransaction" => {
+            broadcast(&s.client, &s.providers, body).await
+                .map(|b| (b, "broadcast".to_string()))
+        }
         _ => retry(&s.client, &s.providers, &method, body).await,
     };
     match result {
-       Some(b) => Response::builder().status(200).body(b.into()).unwrap(),
-      None => Response::builder().status(503).body("no healthy providers".into()).unwrap(),
+        Some((b, provider)) => Response::builder()
+            .status(200)
+            .header("X-Routed-Via", provider)
+            .header("Access-Control-Expose-Headers", "X-Routed-Via")
+            .body(b.into()).unwrap(),
+        None => Response::builder()
+            .status(503)
+            .body("no healthy providers".into()).unwrap(),
     }
 }
 
@@ -77,13 +86,17 @@ pub async fn broadcast(client: &Client, providers: &ProviderMap, body: Bytes) ->
     best.map(|(_, bytes)| bytes)
 }
 
-pub async fn retry(client: &Client, providers: &ProviderMap, method: &str, body: Bytes) -> Option<Bytes> {
+pub async fn retry(client: &Client, providers: &ProviderMap, method: &str, body: Bytes) -> Option<(Bytes, String)> {
     for url in router::route(providers, method) {
         if let Ok(res) = client.post(&url).body(body.clone()).header("Content-Type", "application/json").send().await {
             if res.status().is_success() {
                 if let Ok(bytes) = res.bytes().await {
-                    println!("[{}] success via {}", method, url);
-                    return Some(bytes);
+                  let name = providers.iter()
+                        .find(|p| p.url == url)
+                        .map(|p| p.name.clone())
+                        .unwrap_or(url.clone());
+                    println!("[{}] success via {}", method, name);
+                    return Some((bytes, name));
                 }
             }
         }
