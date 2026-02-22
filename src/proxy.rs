@@ -2,6 +2,8 @@ use std::net::SocketAddr;
 use axum::{Router, routing::post,extract::State,body::Bytes,response::Response, Json};
 use reqwest::Client;
 use futures::future::join_all;
+use axum::http::HeaderValue;
+use tower_http::cors::{CorsLayer, Any};
 use crate::provider::ProviderMap;
 use crate::router;
 
@@ -15,10 +17,15 @@ pub async fn start_proxy(providers: ProviderMap, port: u16) -> anyhow::Result<()
     let listener = tokio::net::TcpListener::bind(
         SocketAddr::from(([0, 0, 0, 0], port))
     ).await?;
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
     println!("proxy on http://0.0.0.0:{}", port);
     axum::serve(listener, Router::new()
         .route("/", post(handler))
         .route("/stats", axum::routing::get(stats))
+        .layer(cors)
         .with_state(state)
     ).await?;
     Ok(())
