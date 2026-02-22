@@ -113,14 +113,9 @@ curl http://localhost:8899/stats
 }
 ```
 
-## What's different from SmartRPC
+## Motivation
 
-SmartRPC by Tensor is TypeScript only. solana-rpc-router is Rust with:
-
-- self-hostable HTTP proxy any language points to localhost:8899
-- background health checker proactive monitoring every 5 seconds
-- dynamic score-based routing latency and trust weight combined
-- rolling latency average smoother routing over last 5 pings
+SmartRPC by Tensor is a great load balancer built for TypeScript on top of @solana/web3.js. There was no Rust equivalent. This project is that a Rust implementation of the same idea, built as a self-hostable HTTP proxy and a native Rust crate.
 
 ## License
 
