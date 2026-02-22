@@ -1,19 +1,21 @@
 [package]
-name = "rpc-router"
+name = "solana-rpc-router"
 version = "0.1.0"
 edition = "2024"
+description = "A smart Solana RPC load balancer with broadcast, health checking and dynamic score-based routing"
+license = "MIT"
+repository = "https://github.com/yourusername/rpc-router"
+keywords = ["solana", "rpc", "load-balancer", "web3", "blockchain"]
+categories = ["network-programming"]
 
 [dependencies]
-tokio = { version = "1.49.0", features = ["full"] }
-axum = "0.8.8"                          
-reqwest = { version = "0.13.2", features = ["json"] }  
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-anyhow = "1.0.101"
-clap = { version = "4.5.59", features = ["derive"] }
-tracing = "0.1.44"
-tracing-subscriber = "0.3.22"
-tokio-stream = "0.1.18"
-dashmap = "6.1.0"
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+reqwest = { version = "0.13", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+dashmap = "6"
 toml = "0.8"
 futures = "0.3"
